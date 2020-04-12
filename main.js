@@ -1,3 +1,4 @@
+// NodeJs AWESOME 으로 주목받는 모듈들을 자주 보자.
 // require = import
 const http = require('http'); // http 모듈 사용
 const fs = require('fs'); // fileSystem 모듈 사용
@@ -9,6 +10,7 @@ const path = require('path');
 // npm init 으로 package.json 생성
 // npm install -S sanitize-html 설치
 // XSS 보안
+// https://www.npmjs.com/package/sanitize-html
 const sanitizeHtml = require('sanitize-html');
 
 let app = http.createServer(function(request, response) {
