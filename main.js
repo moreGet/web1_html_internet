@@ -68,7 +68,11 @@ let app = http.createServer(function(request, response) {
             let template = templateHTML(title, list, 
               `<h2>${title}</h2> ${description}`,
               `<a href = "/create">create</a> 
-               <a href = "/update?id=${title}">update</a>`);
+               <a href = "/update?id=${title}">update</a>
+               <form action="delete_process" method="post">
+                <input type = "hidden" name="id" value="${title}">
+                <input type = "submit" value="delete">
+               </form>`);
             // 응답 값으로 채워넣은 템플릿 값을 보내줌
             response.writeHead(200); // HTTP OK 응답
             response.end(template);
@@ -151,7 +155,7 @@ let app = http.createServer(function(request, response) {
           response.end(template);
         });
       });
-    } else if (pathName === '/update_process') {
+    } else if (pathName === '/update_process') { // 업데이트 기능
       let body = '';
       // request에서 값 빼내오기
       request.on('data', (data) => {
@@ -186,6 +190,32 @@ let app = http.createServer(function(request, response) {
             response.writeHead(302, {Location: `/?id=${title}`}); // 302는 페이지 이동 코드
             response.end();
           });
+        });
+      });
+    } else if (pathName === '/delete_process') { // 삭제 기능 구현
+      let body = '';
+      // request에서 값 빼내오기
+      request.on('data', (data) => {
+        body += data; // request 데이터를 추가함
+
+        // 만약 너무 많은 데이터가 들어 온다면 접속 끊어버림
+        if (body.length > 1e6) {
+          request.connection.destroy();
+        }
+      });
+
+      // 더이상 데이터가 전송되지 않는다면
+      request.on('end', () => {
+        // post변수에 지금까지 저장한 body의 데이터를 parse함수로 받는다.
+        let post = qs.parse(body);
+        // 폼 데이터의 id 값을 추출.
+        // id는 크롬 디버깅 툴의 network탭에서 볼 수 있음.
+        let id = post.id;
+        //파일 삭제 로직
+        fs.unlink(`data/${id}`, (error) => {
+          // 382 는 웹 root 페이지
+          response.writeHead(302, {Location: `/`});
+          response.end();
         });
       });
     } else { // 만약 잘못된 경로로 접속 할 경우 404 에 Not Found
