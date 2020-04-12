@@ -3,43 +3,13 @@ const http = require('http'); // http 모듈 사용
 const fs = require('fs'); // fileSystem 모듈 사용
 const url = require('url'); // url 모듈 사용
 const qs = require('querystring');
-
-function templateHTML(title, list, body, control) {
-  return `
-  <!doctype html>
-  <html>
-  <head>
-    <title>WEB2 - ${title}</title>
-    <meta charset="utf-8">
-  </head>
-  <body>
-    <h1><a href="/">WEB2</a></h1>
-    ${list}
-    ${control}
-    ${body}
-  </body>
-  </html>
-  `;
-}
-
-function templateList(fileList) {
-  // ==============================================
-  // 템플릿 리터럴 형식으로 템플릿 제작
-  
-  // <ul>
-  //   <li><a href="/?id=HTML">HTML</a></li>
-  //   <li><a href="/?id=CSS">CSS</a></li>
-  //   <li><a href="/?id=JavaScript">JavaScript</a></li>
-  // </ul>
-  // 위 UL 문과 같은 효과
-  let list = '<ul>';
-  fileList.forEach(element => {
-    list += `<li><a href="/?id=${element}">${element}</a></li>`;
-  });
-  list = list + '</ul>';
-  // ==============================================
-  return list;
-}
+const template = require('./lib/template.js')
+// 경로 보안
+const path = require('path');
+// npm init 으로 package.json 생성
+// npm install -S sanitize-html 설치
+// XSS 보안
+const sanitizeHtml = require('sanitize-html');
 
 let app = http.createServer(function(request, response) {
     let _url = request.url; // URL을 받는다.
@@ -52,38 +22,43 @@ let app = http.createServer(function(request, response) {
           let title = 'Welcome';
           description = 'Hello, Node.js Yeah!';  // 아무 것도 없을 때 메세지 출력  
 
-          let list = templateList(fileList);
-          let template = templateHTML(title, list, // title, list
+          let list = template.list(fileList);
+          let html = template.html(title, list, // title, list
             `<h2>${title}</h2> ${description}`, // body
             `<a href = "/create">create</a>`); // control
         // 응답 값으로 채워넣은 템플릿 값을 보내줌
         response.writeHead(200); // HTTP OK 응답
-        response.end(template);
+        response.end(html);
         });
       } else { // 루트 패스로 접근 하지 않았을때
         fs.readdir('./data', (err, fileList) => { // 람다 로 파일 List 읽어옴
-          fs.readFile(`data/${queryDate.id}`, 'utf8', (err, description) => { 
+          let filteredId = path.parse(queryDate.id).base; // 경로 보안
+          fs.readFile(`data/${filteredId}`, 'utf8', (err, description) => { 
             let title = queryDate.id; 
-            let list = templateList(fileList);
-            let template = templateHTML(title, list, 
-              `<h2>${title}</h2> ${description}`,
+            // XSS 보안 시작
+            let sanitizeTitle = sanitizeHtml(title);
+            let sanitizeDesc = sanitizeHtml(description);
+            // XSS 보안 로직 끝
+            let list = template.list(fileList);
+            let html = template.html(sanitizeTitle, list, 
+              `<h2>${sanitizeTitle}</h2> ${sanitizeDesc}`,
               `<a href = "/create">create</a> 
-               <a href = "/update?id=${title}">update</a>
+               <a href = "/update?id=${sanitizeTitle}">update</a>
                <form action="delete_process" method="post">
-                <input type = "hidden" name="id" value="${title}">
+                <input type = "hidden" name="id" value="${sanitizeTitle}">
                 <input type = "submit" value="delete">
                </form>`);
             // 응답 값으로 채워넣은 템플릿 값을 보내줌
             response.writeHead(200); // HTTP OK 응답
-            response.end(template);
+            response.end(html);
           });
         });
       }
     } else if (pathName === '/create') {
       fs.readdir('./data', (err, fileList) => {
         let title = 'WEB - create';
-        let list = templateList(fileList);
-        let template = templateHTML(title, list, `
+        let list = template.list(fileList);
+        let html = template.html(title, list, `
         <!-- 서버로 부터 정보를 가져올 때는 method를 GET 중요한 CRUD 는 POST 방식으로 해야한다. -->
         <form action="/create_process", method="POST">
             <p><input type="text" name="title" placeholder="title"></p>
@@ -97,7 +72,7 @@ let app = http.createServer(function(request, response) {
         `, ''); // 뒤에 '' 문자는 매개변수 값에 들어가는 혹시 모를 값을 초기화 해줌
       // 응답 값으로 채워넣은 템플릿 값을 보내줌
       response.writeHead(200); // HTTP OK 응답
-      response.end(template);
+      response.end(html);
       });
     } else if (pathName === '/create_process') {
       let body = '';
@@ -132,10 +107,11 @@ let app = http.createServer(function(request, response) {
       });
     } else if (pathName === '/update') {
       fs.readdir('./data', (err, fileList) => { // 람다 로 파일 List 읽어옴
-        fs.readFile(`data/${queryDate.id}`, 'utf8', (err, description) => { 
+        let filteredId = path.parse(queryDate.id).base; // 경로 보안
+        fs.readFile(`data/${filteredId}`, 'utf8', (err, description) => { 
           let title = queryDate.id; 
-          let list = templateList(fileList);
-          let template = templateHTML(title, list, 
+          let list = template.list(fileList);
+          let html = template.html(title, list, 
             `
             <form action="/update_process", method="POST">
               <input type="hidden" name="id" value="${title}">
@@ -152,7 +128,7 @@ let app = http.createServer(function(request, response) {
              <a href = "/update?id=${title}">update</a>`);
           // 응답 값으로 채워넣은 템플릿 값을 보내줌
           response.writeHead(200); // HTTP OK 응답
-          response.end(template);
+          response.end(html);
         });
       });
     } else if (pathName === '/update_process') { // 업데이트 기능
@@ -212,7 +188,8 @@ let app = http.createServer(function(request, response) {
         // id는 크롬 디버깅 툴의 network탭에서 볼 수 있음.
         let id = post.id;
         //파일 삭제 로직
-        fs.unlink(`data/${id}`, (error) => {
+        let filteredId = path.parse(id).base; // 경로 보안
+        fs.unlink(`data/${filteredId}`, (error) => {
           // 382 는 웹 root 페이지
           response.writeHead(302, {Location: `/`});
           response.end();
